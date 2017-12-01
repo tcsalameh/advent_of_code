@@ -33,7 +33,7 @@ def calculate_sum(reader):
     return accum
 
 def main():
-    reader = read_input('input')
+    reader = read_input('../input')
     print(calculate_sum(reader))
 
 def test():
