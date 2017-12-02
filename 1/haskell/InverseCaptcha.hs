@@ -18,7 +18,7 @@ check a b = if a == b
             else 0
 
 calculateSum :: [Int] -> Int
-calculateSum (x:xs) = foldr (+) 0 $ zipWith (check) (x:xs) (xs ++ [x])
+calculateSum (x:xs) = sum $ zipWith (check) (x:xs) (xs ++ [x])
 calculateSum _ = 0
 
 transformInput :: String -> [Int]

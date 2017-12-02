@@ -24,7 +24,7 @@ check a b = if a == b
             else 0
 
 calculateSum :: [Int] -> Int
-calculateSum xs = foldr (+) 0 $ zipWith (check) (take mid xs) (drop mid xs)
+calculateSum xs = sum $ zipWith (check) (take mid xs) (drop mid xs)
                   where mid = (length xs) `div` 2
 
 test :: [(String, Int)] -> [Either String String]
