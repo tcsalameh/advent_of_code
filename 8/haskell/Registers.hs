@@ -2,20 +2,23 @@ module Registers where
 
 import Text.Printf
 import Text.ParserCombinators.Parsec
+import Control.Monad (ap)
+import Data.Map (Map)
+import qualified Data.Map as M
+import Data.List (foldl')
 
-file = endBy line eol
+-- test case --
 
-eol = try (string "\n\r")
-    <|> try (string "\r\n")
-    <|> string "\n"
-    <|> string "\r"
+testCase = "b inc 5 if a > 1\n\
+\a inc 1 if b < 5\n\
+\c dec -10 if a >= 1\n\
+\c inc -20 if c == 10\n"
 
-type Register = Char
+-- Data types --
 
-data Action =
-      Inc
-    | Dec
-    deriving (Eq, Show)
+type Register = String
+type RegisterMap = Map Register Int
+type Action = (Int -> Int)
 
 data Condition a =
     Cond { op :: (a -> a -> Bool)
@@ -25,42 +28,87 @@ data Condition a =
 data Instruction =
     Instr Register Action Int (Condition Int)
 
+type Program = [Instruction]
+
+-- Parser --
+
+file = endBy line eol
+
+eol = try (string "\n\r")
+    <|> try (string "\r\n")
+    <|> string "\n"
+    <|> string "\r"
+
 line = do
-    register <- letter
+    register <- many letter
     space
-    action <- inc <|> dec
+    act <- action
     space
-    amount <- read <$> many digit
+    amount <- ap sign $ read <$> (many digit)
     string " if "
-    compReg <- letter
+    compReg <- many letter
     space
-    compare <- gt <|> lt <|> eq <|> geq <|> lte <|> neq
+    compare <- comparison
     space
-    compVal <- read <$> many digit
-    return $ Instr register (getAction action) amount $ Cond { op = (comparison compare)
-                                                             , reg = compReg
-                                                             , val = compVal }
+    compVal <- ap sign $ read <$> (many digit)
+    return $ Instr register act amount $ Cond { op = compare
+                                              , reg = compReg
+                                              , val = compVal }
 
-inc = string "inc"
-dec = string "dec"
-gt = string ">"
-lt = string "<"
-geq = string ">="
-lte = string "<="
-neq = string "!="
-eq = string "=="
+sign = (char '-' >> return negate) <|> (optional (char '+') >> return id)
+action = (string "dec" >> return negate) <|> (string "inc" >> return id)
+comparison = try (string ">=" >> return (>=))
+         <|> try (string "<=" >> return (<=))
+         <|> (string ">" >> return (>))
+         <|> (string "<" >> return (<))
+         <|> (string "!=" >> return (/=))
+         <|> (string "==" >> return (==))
 
+parseFile :: String -> Either ParseError Program
+parseFile = parse file "(unknown)"
 
-getAction :: String -> Action
-getAction "dec" = Dec
-getAction _ = Inc
+-- Functions --
 
-comparison :: Ord a => String -> (a -> a -> Bool)
-comparison s
-    | s == "==" = (==)
-    | s == "<=" = (<=)
-    | s == ">=" = (>=)
-    | s == "<"  = (<)
-    | s == ">"  = (>)
-    | otherwise = (/=)
+lookupR :: RegisterMap -> Register -> (Int, RegisterMap)
+lookupR m r = if M.member r m
+              then (m M.! r, m)
+              else (0, M.insert r 0 m)
 
+updateR :: RegisterMap -> Register -> Int -> Action -> RegisterMap
+updateR m r v a = M.insert r new intermed
+    where (cur, intermed) = lookupR m r
+          new = cur + (a v)
+
+evalC :: RegisterMap -> Condition Int -> (Bool, RegisterMap)
+evalC m cond = ((op cond) fstVal (val cond), newM)
+    where (fstVal, newM) = lookupR m (reg cond)
+
+evalI :: RegisterMap -> Instruction -> RegisterMap
+evalI m (Instr r action amnt c) =
+    if cond
+    then updateR intermed r amnt action
+    else intermed
+    where (cond, intermed) = evalC m c
+
+maxRegValue :: RegisterMap -> Int
+maxRegValue = maximum . M.elems
+
+evalAndCheckMax :: RegisterMap -> Instruction -> Int -> (RegisterMap, Int)
+evalAndCheckMax m i oldMax = (newMap, max (maxRegValue newMap) oldMax)
+    where newMap = evalI m i
+
+evalP :: Program -> (RegisterMap, Int)
+evalP = foldl' (\(m,v) i -> evalAndCheckMax m i v) (M.empty, 0)
+
+maxes :: (RegisterMap, Int) -> (Int, Int)
+maxes (m, totalMax) = (maxRegValue m, totalMax)
+
+main :: IO ()
+main = do
+    putStrLn "Input file: "
+    fileName <- readLn
+    input <- readFile fileName
+    case parseFile input of
+        Left error -> print error
+        Right program -> do (uncurry (printf "Max current value: %d, Max liftime value: %d\n"))
+                                $ (maxes . evalP) program
