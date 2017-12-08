@@ -34,10 +34,6 @@ tFst (x, _, _) = x
 tMid (_, x, _) = x
 tLst (_, _, x) = x
 
-allEqual :: Eq a => [a] -> Bool
-allEqual []     = True
-allEqual (x:xs) = all (== x) xs
-
 findRoot :: [(Int, String, [String])] -> String
 findRoot lst = tMid $ fromV $ (head . topSort) graph
     where (graph, fromV, _) = graphFromEdges lst
@@ -73,4 +69,3 @@ main = do
         Left error   -> do print "failed to parse!"
         Right result -> do printf "Base program: %s\n" (findRoot result)
                            printf "Corrected Weight: %s\n" (show $ findCorrectedWeight result)
-                    
