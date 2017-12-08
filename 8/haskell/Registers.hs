@@ -69,26 +69,23 @@ parseFile = parse file "(unknown)"
 
 -- Functions --
 
-lookupR :: RegisterMap -> Register -> (Int, RegisterMap)
-lookupR m r = if M.member r m
-              then (m M.! r, m)
-              else (0, M.insert r 0 m)
+lookupR :: RegisterMap -> Register -> Int
+lookupR m r = M.findWithDefault 0 r m
 
 updateR :: RegisterMap -> Register -> Int -> Action -> RegisterMap
-updateR m r v a = M.insert r new intermed
-    where (cur, intermed) = lookupR m r
+updateR m r v a = M.insert r new m
+    where cur = lookupR m r
           new = cur + (a v)
 
-evalC :: RegisterMap -> Condition Int -> (Bool, RegisterMap)
-evalC m cond = ((op cond) fstVal (val cond), newM)
-    where (fstVal, newM) = lookupR m (reg cond)
+evalC :: RegisterMap -> Condition Int -> Bool
+evalC m cond = (op cond) fstVal (val cond)
+    where fstVal = lookupR m (reg cond)
 
 evalI :: RegisterMap -> Instruction -> RegisterMap
 evalI m (Instr r action amnt c) =
-    if cond
-    then updateR intermed r amnt action
-    else intermed
-    where (cond, intermed) = evalC m c
+    if evalC m c
+    then updateR m r amnt action
+    else m
 
 maxRegValue :: RegisterMap -> Int
 maxRegValue = maximum . M.elems
